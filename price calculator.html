@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gold & Diamond Price Calculator</title>
+<style>
+  :root {
+    --bg: #f6f3ee;
+    --surface: #ffffff;
+    --ink: #1d2230;
+    --muted: #6a6f7d;
+    --line: #ddd7cb;
+    --accent: #a8791c;
+    --accent-ink: #ffffff;
+    --total-bg: #1d2230;
+    --total-ink: #f6f3ee;
+    --warn: #a3321f;
+    --ok: #2f6b3f;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171f;
+      --surface: #1c2029;
+      --ink: #eee9df;
+      --muted: #9aa0ae;
+      --line: #2e3340;
+      --accent: #d6a846;
+      --accent-ink: #14171f;
+      --total-bg: #d6a846;
+      --total-ink: #14171f;
+      --warn: #ef8f7d;
+      --ok: #7fcf94;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    line-height: 1.5;
+    padding: 24px 16px 48px;
+  }
+  main { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; font-weight: 650; letter-spacing: -0.01em; }
+  .lede { color: var(--muted); margin: 0 0 24px; }
+  h2 { font-size: 1.05rem; margin: 0 0 14px; font-weight: 650; }
+  section {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 18px;
+  }
+  [hidden] { display: none !important; }
+
+  /* live camera */
+  .camera { position: fixed; inset: 0; z-index: 100; background: #000; display: flex; flex-direction: column; }
+  .camera video { flex: 1; width: 100%; min-height: 0; object-fit: cover; }
+  .camframe {
+    position: absolute; left: 7%; right: 7%; top: 22%; height: 32%;
+    border: 2px solid rgba(255,255,255,0.85); border-radius: 10px;
+    box-shadow: 0 0 0 100vmax rgba(0,0,0,0.35); pointer-events: none;
+  }
+  .camhint {
+    position: absolute; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + 16px);
+    margin: 0; text-align: center; color: #fff; font-size: 0.95rem; padding: 0 16px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+  }
+  .camctl {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 24px calc(env(safe-area-inset-bottom, 0px) + 24px);
+    background: linear-gradient(transparent, rgba(0,0,0,0.65));
+  }
+  .camside { min-width: 76px; background: none; border: none; color: #fff; font: inherit; font-weight: 600; cursor: pointer; padding: 10px 4px; }
+  .shutter {
+    width: 72px; height: 72px; border-radius: 50%; cursor: pointer;
+    background: #fff; border: 4px solid rgba(255,255,255,0.5); background-clip: padding-box;
+  }
+  .shutter:active { transform: scale(0.94); }
+
+  /* fixed gold rate bar */
+  .ratebar {
+    position: sticky; top: 8px; z-index: 5;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--surface); border: 1px solid var(--accent);
+    border-radius: 10px; padding: 12px 16px; margin-bottom: 18px;
+  }
+  .ratebar label { margin: 0; flex: 1 1 160px; }
+  .ratebar input { flex: 1 1 140px; max-width: 220px; }
+  .ratenote { flex-basis: 100%; margin: 0; font-size: 0.82rem; color: var(--muted); }
+  .ratenote.old { color: var(--warn); }
+
+  /* start screen */
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 520px) { .choices { grid-template-columns: 1fr; } }
+  .choice {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+    text-align: left; padding: 20px; min-height: 150px;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--ink); cursor: pointer; font: inherit;
+  }
+  .choice:hover { border-color: var(--accent); }
+  .choice.main { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .choice svg { width: 32px; height: 32px; }
+  .choice b { font-size: 1.1rem; }
+  .choice span { font-size: 0.9rem; opacity: 0.85; }
+  .small-note { color: var(--muted); font-size: 0.82rem; margin: 14px 0 0; }
+
+  /* form */
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
+  .topbar h2 { margin: 0; }
+  .link {
+    background: none; border: none; padding: 4px 0; color: var(--accent);
+    font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline;
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+  label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; }
+  label small { display: block; font-weight: 400; color: var(--muted); font-size: 0.8rem; }
+  input[type="number"] {
+    width: 100%;
+    font: inherit;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  input.auto { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  button.btn {
+    font: inherit; font-weight: 600; cursor: pointer;
+    padding: 10px 18px; border-radius: 6px; border: 1px solid var(--line);
+    background: transparent; color: var(--ink);
+  }
+  button.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .msg { margin: 12px 0 0; font-size: 0.9rem; color: var(--warn); min-height: 1.3em; }
+
+  /* scan box */
+  .scanbox { border: 1px dashed var(--line); border-radius: 8px; padding: 14px; margin-bottom: 18px; }
+  .scanrow { display: flex; gap: 14px; align-items: flex-start; }
+  .scanrow img { width: 96px; height: 96px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); flex: none; }
+  .scanrow .info { flex: 1; min-width: 0; }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  #scanStatus { margin: 0; font-size: 0.92rem; }
+  #scanStatus.ok { color: var(--ok); }
+  #scanStatus.bad { color: var(--warn); }
+  details { margin-top: 10px; font-size: 0.85rem; color: var(--muted); }
+  details pre { white-space: pre-wrap; word-break: break-word; margin: 8px 0 0; font-family: ui-monospace, Consolas, monospace; }
+
+  /* result */
+  .empty { color: var(--muted); margin: 0; }
+  dl { margin: 0; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .row dt { color: var(--muted); }
+  .row dd { margin: 0; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .row.sub dt { padding-left: 14px; font-size: 0.9rem; }
+  .row.sub dd { font-weight: 500; font-size: 0.9rem; }
+  .total {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    background: var(--total-bg); color: var(--total-ink);
+    border-radius: 8px; padding: 14px 16px; margin-top: 14px;
+  }
+  .total span:last-child { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .formula { color: var(--muted); font-size: 0.82rem; margin: 14px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Gold & Diamond Price Calculator</h1>
+  <p class="lede">Enter the figures from the item tag to work out today’s selling price.</p>
+
+  <!-- Gold rate: set once, used for both scan and manual entry -->
+  <div class="ratebar">
+    <label for="goldRate">Today’s gold rate <small>NPR per tola — saved on this device</small></label>
+    <input id="goldRate" type="number" inputmode="decimal" min="0" step="any" placeholder="0">
+    <p class="ratenote" id="rateNote" hidden></p>
+  </div>
+
+  <!-- Step 1: choose how to enter details -->
+  <section id="start" aria-labelledby="start-h">
+    <h2 id="start-h">How do you want to enter the tag details?</h2>
+    <div class="choices">
+      <button type="button" class="choice main" id="chooseScan">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        <b>Scan the tag</b>
+        <span>Take a photo and fill the details automatically.</span>
+      </button>
+      <button type="button" class="choice" id="chooseManual">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
+        <b>Enter yourself</b>
+        <span>Type the weights from the tag.</span>
+      </button>
+    </div>
+    <p class="small-note">Scanning reads the printed text on the photo, so always check the filled values against the tag.</p>
+  </section>
+
+  <!-- Step 2: form -->
+  <div id="app" hidden>
+    <section aria-labelledby="tag-h">
+      <div class="topbar">
+        <h2 id="tag-h">Tag details</h2>
+        <button type="button" class="link" id="backBtn">Change method</button>
+      </div>
+
+      <div class="scanbox" id="scanBox" hidden>
+        <div class="scanrow">
+          <img id="preview" alt="Photo of the tag">
+          <div class="info">
+            <p id="scanStatus">Reading the tag…</p>
+            <div class="bar" id="bar"><i id="barFill"></i></div>
+            <button type="button" class="link" id="rescan">Scan another tag</button>
+          </div>
+        </div>
+        <details id="rawBox" hidden>
+          <summary>Text read from the photo</summary>
+          <pre id="rawText"></pre>
+        </details>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label for="gwt">G.Wt <small>Gross weight, grams</small></label>
+          <input id="gwt" type="number" inputmode="decimal" min="0" step="any" placeholder="0.000">
+        </div>
+        <div>
+          <label for="nwt">N.Wt <small>Net weight, grams</small></label>
+          <input id="nwt" type="number" inputmode="decimal" min="0" step="any" placeholder="0.000">
+        </div>
+        <div>
+          <label for="dia">Dia <small>Diamond weight, carat</small></label>
+          <input id="dia" type="number" inputmode="decimal" min="0" step="any" placeholder="0.00">
+        </div>
+        <div>
+          <label for="diaRate">Diamond rate <small>NPR per carat — editable</small></label>
+          <input id="diaRate" type="number" inputmode="decimal" min="0" step="any" placeholder="0">
+        </div>
+        <div>
+          <label for="diaPct">Diamond add-on % <small>Optional — leave empty for none, e.g. 1 or 10</small></label>
+          <input id="diaPct" type="number" inputmode="decimal" step="any" placeholder="0">
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn primary" id="calc">Calculate price</button>
+        <button type="button" class="btn" id="reset">Reset</button>
+      </div>
+      <p class="msg" id="msg" role="alert"></p>
+    </section>
+
+    <section aria-labelledby="out-h" aria-live="polite">
+      <h2 id="out-h">Price breakdown</h2>
+      <p class="empty" id="empty">Fill in the tag details and press <strong>Calculate price</strong> to see the breakdown here.</p>
+      <div id="result" hidden>
+        <dl>
+          <div class="row"><dt>G.Wt</dt><dd id="oG">—</dd></div>
+          <div class="row"><dt>N.Wt</dt><dd id="oN">—</dd></div>
+          <div class="row"><dt>Diamond</dt><dd id="oD">—</dd></div>
+          <div class="row"><dt>Gold rate</dt><dd id="oR">—</dd></div>
+          <div class="row"><dt>Gold price</dt><dd id="oGold">—</dd></div>
+          <div class="row"><dt>Diamond price</dt><dd id="oDia">—</dd></div>
+          <div class="row sub" id="subBase" hidden><dt>Dia × diamond rate</dt><dd id="oBase">—</dd></div>
+          <div class="row sub" id="subPct" hidden><dt id="pctLabel">Add-on</dt><dd id="oPct">—</dd></div>
+        </dl>
+        <div class="total"><span>Final price</span><span id="oFinal">Rs. —</span></div>
+      </div>
+      <p class="formula">
+        Gold price = (N.Wt × 82 ÷ 100 ÷ 11.664) × gold rate &nbsp;·&nbsp;
+        Diamond price = (Dia × diamond rate) + add-on % of that amount &nbsp;·&nbsp;
+        Final = gold + diamond
+      </p>
+    </section>
+  </div>
+
+  <!-- Live camera screen -->
+  <div class="camera" id="camera" hidden>
+    <video id="camVideo" autoplay playsinline muted></video>
+    <div class="camframe" aria-hidden="true"></div>
+    <p class="camhint">Fit the tag inside the frame, then tap the round button.</p>
+    <div class="camctl">
+      <button type="button" class="camside" id="camCancel">Cancel</button>
+      <button type="button" class="shutter" id="camShoot" aria-label="Take photo"></button>
+      <button type="button" class="camside" id="camGallery">Gallery</button>
+    </div>
+  </div>
+
+  <!-- Gallery / fallback picker (no capture attribute, so it shows photos) -->
+  <input type="file" id="camInput" accept="image/*" hidden>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var fmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
+  var fmtDec = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 3 });
+  var FIELDS = ["gwt", "nwt", "dia", "goldRate", "diaRate", "diaPct"];
+
+  /* ---------- small storage helpers (never break if storage is blocked) ---------- */
+  function store(key, val) { try { localStorage.setItem(key, val); } catch (e) {} }
+  function load(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function today() { return new Date().toISOString().slice(0, 10); }
+
+  function showRateNote() {
+    var note = $("rateNote");
+    var g = load("goldRate"), o = null;
+    try { o = g ? JSON.parse(g) : null; } catch (e) {}
+    if (o && o.value && o.date !== today()) {
+      note.textContent = "This rate was saved on " + o.date + ". Update it if today’s rate has changed.";
+      note.className = "ratenote old";
+      note.hidden = false;
+    } else {
+      note.hidden = true;
+    }
+  }
+
+  function restoreRates() {
+    // The gold rate stays fixed until you change it; a reminder shows if it is from an earlier day.
+    var g = load("goldRate");
+    if (g) { try { var o = JSON.parse(g); if (o.value) $("goldRate").value = o.value; } catch (e) {} }
+    var d = load("diaRate");
+    if (d) $("diaRate").value = d;
+    showRateNote();
+  }
+
+  /* ---------- calculator ---------- */
+  function num(id) { var v = parseFloat($(id).value); return isFinite(v) ? v : 0; }
+  function rs(n) { return "Rs. " + fmt.format(Math.round(n)); }
+
+  function calculate() {
+    var msg = $("msg");
+    msg.textContent = "";
+    var gwt = num("gwt"), nwt = num("nwt"), dia = num("dia");
+    var goldRate = num("goldRate"), diaRate = num("diaRate"), pct = num("diaPct");
+
+    if (nwt <= 0 && dia <= 0) { msg.textContent = "Enter the net weight or the diamond weight."; return; }
+    if (nwt > 0 && goldRate <= 0) {
+      msg.textContent = "Enter today’s gold rate (NPR per tola) in the box at the top.";
+      $("goldRate").focus();
+      return;
+    }
+    if (dia > 0 && diaRate <= 0) { msg.textContent = "Enter the diamond rate (NPR per carat)."; return; }
+    if (gwt > 0 && nwt > gwt) { msg.textContent = "Net weight is more than gross weight. Check the tag."; return; }
+
+    var goldPrice = (nwt * 82 / 100 / 11.664) * goldRate;
+    var diaBase = dia * diaRate;
+    var diaExtra = diaBase * pct / 100;   // empty % = 0, so the price is unchanged
+    var diaPrice = diaBase + diaExtra;
+    var finalPrice = goldPrice + diaPrice;
+
+    if (diaRate > 0) store("diaRate", String(diaRate));
+
+    $("oG").textContent = gwt > 0 ? fmtDec.format(gwt) + " g" : "—";
+    $("oN").textContent = fmtDec.format(nwt) + " g";
+    $("oD").textContent = fmtDec.format(dia) + " ct";
+    $("oR").textContent = rs(goldRate) + " / tola";
+    $("oGold").textContent = rs(goldPrice);
+    $("oDia").textContent = rs(diaPrice);
+
+    var showPct = pct !== 0 && dia > 0;
+    $("subBase").hidden = !showPct;
+    $("subPct").hidden = !showPct;
+    if (showPct) {
+      $("oBase").textContent = rs(diaBase);
+      $("pctLabel").textContent = "Add-on " + fmtDec.format(pct) + "%";
+      $("oPct").textContent = (diaExtra < 0 ? "− " : "+ ") + rs(Math.abs(diaExtra));
+    }
+    $("oFinal").textContent = rs(finalPrice);
+    $("empty").hidden = true;
+    $("result").hidden = false;
+  }
+
+  function clearAuto() { FIELDS.forEach(function (id) { $(id).classList.remove("auto"); }); }
+
+  function reset() {
+    ["gwt", "nwt", "dia", "diaPct"].forEach(function (id) { $(id).value = ""; });
+    clearAuto();
+    $("msg").textContent = "";
+    $("result").hidden = true;
+    $("empty").hidden = false;
+    $("scanBox").hidden = true;
+  }
+
+  /* ---------- screens ---------- */
+  function showApp(withScan) {
+    $("start").hidden = true;
+    $("app").hidden = false;
+    $("scanBox").hidden = !withScan;
+  }
+  function showStart() {
+    $("app").hidden = true;
+    $("start").hidden = false;
+  }
+
+  /* ---------- photo → text ---------- */
+  // Resize, grayscale and stretch contrast so small tag print reads better.
+  function prepare(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        var max = 1800, w = img.naturalWidth, h = img.naturalHeight;
+        var scale = Math.min(1, max / Math.max(w, h));
+        if (Math.max(w, h) < 1000) scale = 1400 / Math.max(w, h);
+        var c = document.createElement("canvas");
+        c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+        var ctx = c.getContext("2d");
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        var d = ctx.getImageData(0, 0, c.width, c.height), p = d.data;
+        var lo = 255, hi = 0, i, g;
+        for (i = 0; i < p.length; i += 4) {
+          g = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2];
+          p[i] = p[i + 1] = p[i + 2] = g;
+          if (g < lo) lo = g; if (g > hi) hi = g;
+        }
+        var range = Math.max(1, hi - lo);
+        for (i = 0; i < p.length; i += 4) {
+          g = (p[i] - lo) * 255 / range;
+          p[i] = p[i + 1] = p[i + 2] = g;
+        }
+        ctx.putImageData(d, 0, 0);
+        resolve({ canvas: c, previewUrl: url });
+      };
+      img.onerror = function () { reject(new Error("Could not open the photo.")); };
+      img.src = url;
+    });
+  }
+
+  // Turn OCR look-alikes (O→0, I/l→1) inside a number and read it.
+  function toNumber(s) {
+    if (!/[0-9]/.test(s)) return null;
+    var t = s.replace(/\s+/g, "").replace(/[Oo]/g, "0").replace(/[Il|]/g, "1").replace(/,/g, ".").replace(/[^0-9.]/g, "");
+    var parts = t.split(".");
+    if (parts.length > 2) t = parts[0] + "." + parts.slice(1).join("");
+    var v = parseFloat(t);
+    return isFinite(v) ? v : null;
+  }
+
+  var NUM = "([0-9OoIl|]+(?:\\s*[.,]\\s*[0-9OoIl|]+)?)";
+  function findValue(text, labelPattern) {
+    var m = new RegExp(labelPattern + "\\s*[.,:=\\-]*\\s*" + NUM, "i").exec(text);
+    return m ? toNumber(m[m.length - 1]) : null;
+  }
+
+  function parseTag(text) {
+    var t = text.replace(/\r/g, "\n");
+    var out = {};
+    var g = findValue(t, "\\bG(?:ROSS)?\\s*[.,:]?\\s*W(?:T|GT|EIGHT)?\\b");
+    var n = findValue(t, "\\bN(?:ET)?\\s*[.,:]?\\s*W(?:T|GT|EIGHT)?\\b");
+    var d = findValue(t, "\\b(?:DIA(?:MOND)?|D\\s*[.,]?\\s*W(?:T)?)\\b");
+    if (d === null) {
+      var m = /([0-9]+\s*[.,]\s*[0-9]+)\s*(?:CTS?|CARATS?)\b/i.exec(t);
+      if (m) d = toNumber(m[1]);
+    }
+    if (g !== null && g > 0 && g < 2000) out.gwt = g;
+    if (n !== null && n > 0 && n < 2000) out.nwt = n;
+    if (d !== null && d > 0 && d < 50) out.dia = d;
+    return out;
+  }
+
+  function setStatus(text, cls) {
+    var s = $("scanStatus");
+    s.textContent = text;
+    s.className = cls || "";
+  }
+
+  var scanning = false;
+  async function scan(file) {
+    if (scanning) return;
+    scanning = true;
+    showApp(true);
+    clearAuto();
+    $("rawBox").hidden = true;
+    $("bar").hidden = false;
+    $("barFill").style.width = "0%";
+    setStatus("Preparing the photo…");
+
+    var prepared;
+    try {
+      prepared = await prepare(file);
+    } catch (e) {
+      setStatus(e.message + " You can type the details below.", "bad");
+      $("bar").hidden = true; scanning = false; return;
+    }
+    $("preview").src = prepared.previewUrl;
+
+    if (!window.Tesseract) {
+      setStatus("The scanner could not load (check your internet connection). You can type the details below.", "bad");
+      $("bar").hidden = true; scanning = false; return;
+    }
+
+    var worker;
+    try {
+      setStatus("Reading the tag… the first scan downloads the reader and can take a little longer.");
+      worker = await Tesseract.createWorker("eng", 1, {
+        logger: function (m) {
+          if (m.status === "recognizing text") {
+            $("barFill").style.width = Math.round(m.progress * 100) + "%";
+          }
+        }
+      });
+      await worker.setParameters({ tessedit_pageseg_mode: "6" });
+      var res = await worker.recognize(prepared.canvas);
+      var text = res.data.text || "";
+      await worker.terminate();
+
+      $("rawText").textContent = text.trim() || "(nothing readable)";
+      $("rawBox").hidden = false;
+
+      var found = parseTag(text);
+      var names = { gwt: "G.Wt", nwt: "N.Wt", dia: "Dia" };
+      var filled = [], missing = [];
+      Object.keys(names).forEach(function (k) {
+        if (found[k] !== undefined) {
+          $(k).value = found[k];
+          $(k).classList.add("auto");
+          filled.push(names[k] + " " + found[k]);
+        } else {
+          missing.push(names[k]);
+        }
+      });
+
+      if (filled.length === 0) {
+        setStatus("Could not find G.Wt, N.Wt or Dia in the photo. Try a closer, brighter, straight-on photo, or type the details below.", "bad");
+      } else {
+        var s = "Filled: " + filled.join(", ") + ".";
+        if (missing.length) s += " Not found: " + missing.join(", ") + " — enter it yourself.";
+        s += " Check against the tag, then press Calculate price.";
+        setStatus(s, "ok");
+      }
+    } catch (e) {
+      try { if (worker) await worker.terminate(); } catch (e2) {}
+      setStatus("Scanning failed. You can type the details below.", "bad");
+    }
+    $("bar").hidden = true;
+    scanning = false;
+  }
+
+  /* ---------- wire up ---------- */
+  /* ---------- live camera ---------- */
+  var stream = null;
+
+  function closeCamera() {
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    $("camVideo").srcObject = null;
+    $("camera").hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  async function openCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      // Camera not available in this browser: fall back to the photo picker.
+      $("camInput").click();
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+    } catch (e) {
+      var denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
+      alert(denied
+        ? "Camera permission is blocked. Allow the camera for this site in your browser settings, or choose a photo instead."
+        : "The camera could not be opened. Choose a photo instead.");
+      $("camInput").click();
+      return;
+    }
+    var v = $("camVideo");
+    v.srcObject = stream;
+    $("camera").hidden = false;
+    document.body.style.overflow = "hidden";
+    try { await v.play(); } catch (e) {}
+  }
+
+  function shoot() {
+    var v = $("camVideo");
+    if (!v.videoWidth) return;
+    var c = document.createElement("canvas");
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+    c.toBlob(function (blob) {
+      closeCamera();
+      if (blob) scan(new File([blob], "tag.jpg", { type: "image/jpeg" }));
+    }, "image/jpeg", 0.92);
+  }
+
+  $("camShoot").addEventListener("click", shoot);
+  $("camCancel").addEventListener("click", closeCamera);
+  $("camGallery").addEventListener("click", function () { closeCamera(); $("camInput").click(); });
+
+  $("chooseScan").addEventListener("click", openCamera);
+  $("rescan").addEventListener("click", openCamera);
+  $("chooseManual").addEventListener("click", function () { showApp(false); });
+  $("backBtn").addEventListener("click", showStart);
+  $("camInput").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = "";            // lets the same photo be picked again
+    if (f) scan(f);
+  });
+  $("calc").addEventListener("click", calculate);
+  $("reset").addEventListener("click", reset);
+  FIELDS.forEach(function (id) {
+    $(id).addEventListener("input", function () { $(id).classList.remove("auto"); });
+    $(id).addEventListener("keydown", function (e) { if (e.key === "Enter") calculate(); });
+  });
+
+  $("goldRate").addEventListener("input", function () {
+    var v = parseFloat($("goldRate").value);
+    if (isFinite(v) && v > 0) store("goldRate", JSON.stringify({ date: today(), value: v }));
+    showRateNote();
+  });
+
+  restoreRates();
+})();
+</script>
+</body>
+</html>
